@@ -66,7 +66,7 @@ def FFP(
     -------
     x_ci_max : float
         x-location of footprint peak (distance from measurement) [m].
-    x_ci : ndarray
+    x_ci : ndplt.pcolormesh(x_2d, y_2d, f_2d)array
         x-array of crosswind-integrated footprint [m].
     f_ci : ndarray
         Footprint function values of the crosswind-integrated footprint [m^-1].
@@ -426,19 +426,31 @@ def get_contour_levels(f, dx, dy, rs=None):
 def get_contour_vertices(x, y, f, lev):
     cs = plt.contour(x, y, f, [lev])
     plt.close()
-    segs = cs.allsegs[0][0]
-    xr = [vert[0] for vert in segs]
-    yr = [vert[1] for vert in segs]
-    # Set contour to None if it's found to reach the physical domain
+
+    if not cs.collections:
+        return [None, None]  # Return if no contour lines were found
+
+    # Process all segments from the first contour line
+    path = cs.collections[0].get_paths()
+    if not path:
+        return [None, None]  # Return if there are no paths in the collection
+
+    segs = path[0].vertices  # Take the first path's vertices
+    if segs.size == 0:
+        return [None, None]
+
+    xr, yr = segs[:, 0], segs[:, 1]
+
+    # Check if the contour reaches the boundary of the physical domain
     if (
-        x.min() >= min(segs[:, 0])
-        or max(segs[:, 0]) >= x.max()
-        or y.min() >= min(segs[:, 1])
-        or max(segs[:, 1]) >= y.max()
+        np.min(xr) <= x.min()
+        or np.max(xr) >= x.max()
+        or np.min(yr) <= y.min()
+        or np.max(yr) >= y.max()
     ):
         return [None, None]
 
-    return [xr, yr]  # x,y coords of contour points.
+    return [xr, yr]  # x, y coordinates of contour points.
 
 
 # ===============================================================================
@@ -457,7 +469,9 @@ def plot_footprint(
 
     import numpy as np
     import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
+
+    # import matplotlib.cm as cm
+    from cmcrameri import cm
     from matplotlib.colors import LogNorm
 
     # If input is a list of footprints, don't show footprint but only contours,
@@ -468,7 +482,7 @@ def plot_footprint(
         fs = [fs]
 
     if colormap is None:
-        colormap = cm.jet
+        colormap = cm.batlow
     # Define colors for each contour set
     cs = [colormap(ix) for ix in np.linspace(0, 1, len(fs))]
 
