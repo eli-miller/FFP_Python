@@ -389,37 +389,55 @@ def FFP(
 
 # ===============================================================================
 # ===============================================================================
-def get_contour_levels(f, dx, dy, rs=None):
-    """Contour levels of f at percentages of f-integral given by rs"""
+def get_contour_levels(footprint_values, grid_dx, grid_dy, contour_levels=None):
+    """
+    Calculate contour levels of the footprint values at specified percentages of the integral.
 
+    Parameters
+    ----------
+    footprint_values : ndarray
+        Array of footprint values.
+    grid_dx : float
+        Grid spacing in the x-direction.
+    grid_dy : float
+        Grid spacing in the y-direction.
+    contour_levels : int, float, list, or None, optional
+        Percentage of source area for contour outputs. Values must range between 10% and 90%.
+        Can be a single value (e.g., 80) or a list of values (e.g., [10, 20, 30]).
+        Expressed as percentages (e.g., 80) or fractions (e.g., 0.8). Default is None.
+
+    Returns
+    -------
+    list of tuples
+        List of tuples containing the percentage, area, and contour level value.
+    """
     import numpy as np
     from numpy import ma
-    import sys
 
-    # Check input and resolve to default levels in needed
-    if not isinstance(rs, (int, float, list)):
-        rs = list(np.linspace(0.10, 0.90, 9))
-    if isinstance(rs, (int, float)):
-        rs = [rs]
+    # Check input and resolve to default levels if needed
+    if not isinstance(contour_levels, (int, float, list)):
+        contour_levels = list(np.linspace(0.10, 0.90, 9))
+    if isinstance(contour_levels, (int, float)):
+        contour_levels = [contour_levels]
 
     # Levels
-    pclevs = np.empty(len(rs))
-    pclevs[:] = np.nan
-    ars = np.empty(len(rs))
-    ars[:] = np.nan
+    percentage_levels = np.empty(len(contour_levels))
+    percentage_levels[:] = np.nan
+    area_levels = np.empty(len(contour_levels))
+    area_levels[:] = np.nan
 
-    sf = np.sort(f, axis=None)[::-1]
-    msf = ma.masked_array(
-        sf, mask=(np.isnan(sf) | np.isinf(sf))
+    sorted_footprint = np.sort(footprint_values, axis=None)[::-1]
+    masked_sorted_footprint = ma.masked_array(
+        sorted_footprint, mask=(np.isnan(sorted_footprint) | np.isinf(sorted_footprint))
     )  # Masked array for handling potential nan
 
-    csf = msf.cumsum().filled(np.nan) * dx * dy
-    for ix, r in enumerate(rs):
-        dcsf = np.abs(csf - r)
-        pclevs[ix] = sf[np.nanargmin(dcsf)]
-        ars[ix] = csf[np.nanargmin(dcsf)]
+    cumulative_sorted_footprint = masked_sorted_footprint.cumsum().filled(np.nan) * grid_dx * grid_dy
+    for index, level in enumerate(contour_levels):
+        difference_cumulative_sorted_footprint = np.abs(cumulative_sorted_footprint - level)
+        percentage_levels[index] = sorted_footprint[np.nanargmin(difference_cumulative_sorted_footprint)]
+        area_levels[index] = cumulative_sorted_footprint[np.nanargmin(difference_cumulative_sorted_footprint)]
 
-    return [(round(r, 3), ar, pclev) for r, ar, pclev in zip(rs, ars, pclevs)]
+    return [(round(level, 3), area, percentage) for level, area, percentage in zip(contour_levels, area_levels, percentage_levels)]
 
 
 # ===============================================================================
