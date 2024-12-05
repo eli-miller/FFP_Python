@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import numbers
+from cmcrameri import cm
 
 
 def FFP(
@@ -389,37 +390,64 @@ def FFP(
 
 # ===============================================================================
 # ===============================================================================
-def get_contour_levels(f, dx, dy, rs=None):
-    """Contour levels of f at percentages of f-integral given by rs"""
+def get_contour_levels(
+    footprint_values, grid_spacing_x, grid_spacing_y, contour_percentages=None
+):
+    """
+    Calculate contour levels for given footprint values and contour percentages.
+
+    Parameters
+    ----------
+    footprint_values : ndarray
+        2D array of footprint values.
+    grid_spacing_x : float
+        Grid spacing in the x-direction.
+    grid_spacing_y : float
+        Grid spacing in the y-direction.
+    contour_percentages : int, float, or list, optional
+        Contour percentages to calculate levels for. If not provided, defaults to [10%, 20%, ..., 90%].
+
+    Returns
+    -------
+    list of tuples
+        Each tuple contains (percentage, area, contour_level) for the given contour percentages.
+    """
 
     import numpy as np
     from numpy import ma
     import sys
 
-    # Check input and resolve to default levels in needed
-    if not isinstance(rs, (int, float, list)):
-        rs = list(np.linspace(0.10, 0.90, 9))
-    if isinstance(rs, (int, float)):
-        rs = [rs]
+    # Check input and resolve to default levels if needed
+    if not isinstance(contour_percentages, (int, float, list)):
+        contour_percentages = list(np.linspace(0.10, 0.90, 9))
+    if isinstance(contour_percentages, (int, float)):
+        contour_percentages = [contour_percentages]
 
     # Levels
-    pclevs = np.empty(len(rs))
-    pclevs[:] = np.nan
-    ars = np.empty(len(rs))
-    ars[:] = np.nan
+    contour_levels = np.empty(len(contour_percentages))
+    contour_levels[:] = np.nan
+    areas = np.empty(len(contour_percentages))
+    areas[:] = np.nan
 
-    sf = np.sort(f, axis=None)[::-1]
-    msf = ma.masked_array(
-        sf, mask=(np.isnan(sf) | np.isinf(sf))
+    sorted_values = np.sort(footprint_values, axis=None)[::-1]
+    masked_sorted_values = ma.masked_array(
+        sorted_values, mask=(np.isnan(sorted_values) | np.isinf(sorted_values))
     )  # Masked array for handling potential nan
 
-    csf = msf.cumsum().filled(np.nan) * dx * dy
-    for ix, r in enumerate(rs):
-        dcsf = np.abs(csf - r)
-        pclevs[ix] = sf[np.nanargmin(dcsf)]
-        ars[ix] = csf[np.nanargmin(dcsf)]
+    cumulative_sum = (
+        masked_sorted_values.cumsum().filled(np.nan) * grid_spacing_x * grid_spacing_y
+    )
+    for index, percentage in enumerate(contour_percentages):
+        difference_cumulative_sum = np.abs(cumulative_sum - percentage)
+        contour_levels[index] = sorted_values[np.nanargmin(difference_cumulative_sum)]
+        areas[index] = cumulative_sum[np.nanargmin(difference_cumulative_sum)]
 
-    return [(round(r, 3), ar, pclev) for r, ar, pclev in zip(rs, ars, pclevs)]
+    return [
+        (round(percentage, 3), area, contour_level)
+        for percentage, area, contour_level in zip(
+            contour_percentages, areas, contour_levels
+        )
+    ]
 
 
 # ===============================================================================
@@ -461,7 +489,7 @@ def plot_footprint(
     clevs=None,
     show_heatmap=True,
     normalize=None,
-    colormap=None,
+    colormap=cm.batlow,
     line_width=0.5,
     iso_labels=None,
 ):
@@ -471,7 +499,7 @@ def plot_footprint(
     import matplotlib.pyplot as plt
 
     # import matplotlib.cm as cm
-    from cmcrameri import cm
+
     from matplotlib.colors import LogNorm
 
     # If input is a list of footprints, don't show footprint but only contours,
@@ -481,8 +509,6 @@ def plot_footprint(
     else:
         fs = [fs]
 
-    if colormap is None:
-        colormap = cm.batlow
     # Define colors for each contour set
     cs = [colormap(ix) for ix in np.linspace(0, 1, len(fs))]
 
